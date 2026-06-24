@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Filecoin Pay — Fee &amp; Burn Redesign Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2d3340;
+    --text:#e6edf3; --muted:#9aa7b4; --accent:#3fb6f7; --fil:#0090ff;
+    --burn:#ff6b6b; --usdfc:#22c55e; --other:#f59e0b; --proof:#a78bfa; --cds:#ec4899;
+    --consensus:#64748b; --service:#14b8a6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px}
+  h1{font-size:22px;margin:0 0 2px}
+  h2{font-size:15px;margin:0 0 12px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:13px}
+  .grid{display:grid;gap:16px}
+  .controls{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:900px){.controls{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .field .val{float:right;color:var(--accent);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  input[type=number],select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px}
+  .seg{display:flex;gap:4px;flex-wrap:wrap}
+  .seg button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--muted);padding:6px;border-radius:6px;cursor:pointer;font-size:12px}
+  .seg button.active{background:var(--accent);color:#04121d;border-color:var(--accent);font-weight:600}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .kpi .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .d{font-size:11px;color:var(--muted);margin-top:2px}
+  .charts{grid-template-columns:1fr 1fr}
+  @media(max-width:900px){.charts{grid-template-columns:1fr}}
+  .chartbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .chartbox h3{font-size:13px;margin:0 0 10px;font-weight:600}
+  .chartbox .note{font-size:11px;color:var(--muted);margin-top:8px}
+  canvas{max-height:280px}
+  table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+  th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel)}
+  .tablewrap{max-height:360px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+  .pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px}
+  .pass{background:rgba(34,197,94,.18);color:#4ade80}
+  .fail{background:rgba(255,107,107,.16);color:#ff9b9b}
+  .legend{font-size:11px;color:var(--muted);margin:4px 0 0}
+  .foot{color:var(--muted);font-size:11px;margin-top:24px;border-top:1px solid var(--line);padding-top:14px}
+  a{color:var(--accent)}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--accent);font-size:12px}
+  .help{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 16px;margin-bottom:18px}
+  .help[open]{padding-bottom:16px}
+  .help>summary{font-size:14px;font-weight:600;padding:10px 0}
+  .help h4{margin:14px 0 4px;font-size:13px;color:var(--accent)}
+  .help p{margin:5px 0;color:var(--muted);font-size:12.5px}
+  .help b{color:var(--text)}
+  .help .term{color:var(--text);font-weight:600}
+  .help em{color:var(--muted);font-style:italic}
+  .help code{background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:11.5px;color:var(--accent)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+  .cgrid>div{display:flex;flex-direction:column}
+  .cgrid label{font-size:10px;color:var(--muted);margin-bottom:2px}
+  .cgrid input{padding:3px 4px;font-size:11px}
+  .hint{font-size:11px;color:var(--accent);margin:2px 0 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Filecoin Pay — Fee &amp; Burn Redesign Calculator</h1>
+  <p class="sub">Project network growth onto the Filecoin Pay fee structure and see FIL burn by category. Compare the current mainnet regime (v1.2.x: 0.5% + 0.1 USDFC sybil burn), the v1.3.0 direction (sybil fee → SP), and a redesign with a non-FIL/non-USDFC surcharge. Network-size scenarios follow Molly's FIP-1249 explorer (FPV = settled $ volume). <strong>Scope:</strong> this models the Filecoin Onchain Cloud (FOC / PDP) subsystem — Filecoin Pay volume, PDP-stored data and the PDP proof fee — <strong>not the whole Filecoin network</strong>. The proof fee is charged only on PDPVerifier proofs, never on legacy sealed-sector (WindowPoSt) storage. The block-reward panel is the one network-wide mechanism, and it is gated by FOC volume.</p>
+
+  <details class="help" open>
+  <summary>&#8505;&#65038; Parameters &amp; growth models explained</summary>
+
+  <h4>Growth models — how FPV (network size) grows over time</h4>
+  <p><span class="term">Decaying</span> — Growth starts fast and only slows down. The quarter-over-quarter (QoQ) rate begins at your <b>Initial QoQ growth</b> and decays smoothly toward the <b>Long-term growth</b> floor. Models a launch with strong early adoption that matures. <code>g&#7522; = floor + (g&minus;floor)&middot;e^(&minus;0.45(i&minus;1))</code></p>
+  <p><span class="term">Peak &amp; settle</span> — Growth <b>accelerates first</b>, peaks around Q4&ndash;Q5, then decelerates to the floor by ~Q13. The QoQ rate follows a gamma-shaped hump rather than a straight decline. Models an adoption S-curve: slow start &rarr; acceleration &rarr; maturity. Starts at the same initial rate but climbs above it before falling.</p>
+  <p><span class="term">Wasabi</span> — A real-world benchmark using Wasabi (cloud-storage startup) QoQ rates: ~32%/q year 1, 14%/q year 2, 10%/q year 3, 4%/q after. The growth-rate sliders are ignored; only the starting FPV applies.</p>
+  <p><span class="term">Custom</span> — Set the QoQ growth rate for each quarter Q3&ndash;Q16 yourself (pre-filled with the decaying path; type in Molly's per-quarter numbers). Quarters beyond Q16 grow at the Long-term rate.</p>
+
+  <h4>1 &middot; Network size (FPV)</h4>
+  <p><span class="term">Starting FPV(Q2)</span> — Filecoin Pay Volume in the first measured quarter (USD). FPV = total $ value of deal payments settled through Filecoin Pay in a quarter &mdash; <b>not</b> the fee. Q1 is a bootstrap quarter with no measured volume. This seeds the network size.</p>
+  <p><span class="term">Storage price</span> — USDFC per TiB per month (FWSS = 2.5, Storacha = 0.9). Translates the starting FPV into the implied network size shown under the FPV slider, assuming all volume is storage (excludes CDN/egress). It is a guide for setting <b>PDP data stored</b> consistently; it does not itself change the burn math.</p>
+  <p><span class="term">Initial QoQ growth (Q2&rarr;Q3)</span> — the starting quarter-over-quarter FPV growth rate (Decaying &amp; Peak models).</p>
+  <p><span class="term">Long-term growth</span> — the steady-state QoQ rate the trajectory settles toward (Decaying &amp; Peak models).</p>
+  <p><span class="term">PDP data stored @Q2 (FOC only)</span> — total data under PDP / Filecoin-Onchain-Cloud storage (TiB) in the first measured quarter; grows along the FPV trajectory. Drives the proof-fee burn. <b>This is the PDP network, not the whole Filecoin network</b> — the 0.00023 FIL/TiB fee is charged only on PDPVerifier <code>provePossession</code>, never on legacy sealed-sector storage (WindowPoSt), which has its own pledge/reward economics. <em>All PDP listeners (FWSS + Storacha + direct) &asymp; 25 TiB actively proven on mainnet today.</em></p>
+  <p><span class="term">FIL price</span> — converts USDFC fees into the FIL they burn at auction (and values block rewards). Lower FIL price &rarr; more FIL burned per USDFC of fees.</p>
+  <p><span class="term">Quarters to model</span> — the projection horizon.</p>
+
+  <h4>2 &middot; Fee regime</h4>
+  <p><span class="term">Preset</span> — quick-loads the slider set for <b>Mainnet v1.2.x</b> (0.5% + 0.1 USDFC sybil burn), <b>v1.3.0</b> (0.5%, createDataSet fee &rarr; SP), or a <b>Redesign</b> starting point. Presets just move the sliders; tweak freely after.</p>
+  <p><span class="term">Network fee on settlement</span> — the % taken from each settlement (the &ldquo;payment fee&rdquo;, 0.5% today). On FIL rails it&rsquo;s burned directly; on USDFC/other rails it goes to the auction pool.</p>
+  <p><span class="term">createDataSet fee</span> — one-time USDFC fee per new dataset (0.1 in v1.2.x, 0.025 in v1.3.0).</p>
+  <p><span class="term">createDataSet fee destination</span> — <b>Burned</b> (into the auction pool &rarr; contributes to FIL burn) or <b>To SP</b> (provider revenue, no burn). This one toggle is the v1.2.x &rarr; v1.3.0 change and the single biggest driver of fee-burn.</p>
+  <p><span class="term">New datasets per quarter @Q2</span> — datasets created in the first measured quarter; scales with FPV thereafter. Drives createDataSet-fee volume. <em>Simplifying proxy &mdash; set it to your real datasets-per-volume ratio.</em></p>
+  <p><span class="term">Proof-fee rate</span> — FIL burned per TiB per proof (PDPVerifier <code>DEFAULT_FEE_PER_TIB</code>, default 0.00023, governable). <span class="term">Proofs per day</span> — proofs per dataset per day (1 on mainnet, ~12 on calibnet). Proof burn = rate &times; stored TiB &times; proofs/day &times; 90.</p>
+
+  <h4>3 &middot; Token mix &amp; non-FIL surcharge</h4>
+  <p><span class="term">FIL / USDFC / Other shares</span> — % of FPV settled in each token; the three always sum to 100% (moving one rebalances the other two). FIL burns directly; USDFC converts to FIL via the weekly auction; other tokens convert via auction too, at a lower efficiency.</p>
+  <p><span class="term">Surcharge on other tokens</span> — extra fee on top of the network fee for non-FIL/non-USDFC tokens, pricing their weaker value accrual.</p>
+  <p><span class="term">Other-token auction conversion efficiency</span> — assuming every fee auction eventually closes, the share of an other-token pool that converts to FIL after the Dutch-auction discount/delay (USDFC &asymp; par; illiquid tokens clear lower). The shortfall vs USDFC is what the surcharge offsets.</p>
+  <p><span class="term">USDFC auction conversion efficiency</span> — how much of the USDFC pool&rsquo;s value becomes FIL burn at auction (100% = no discount; lower models the Dutch-auction haircut).</p>
+
+  <h4>Outputs</h4>
+  <p><span class="term">FIL burn by category</span> — per-quarter burn, stacked by source. &nbsp;<span class="term">Cumulative comparison</span> — same network, three fee regimes. &nbsp;<span class="term">FPV trajectory</span> — your network-size curve. &nbsp;<span class="term">FIP-1249 split</span> — macro context: how much new emission (wb&middot;BR) is burned when service-stream growth lags the ceiling.</p>
+  </details>
+
+  <div class="grid controls">
+    <!-- Scenario -->
+    <div class="panel">
+      <h2>1 · Network size (FPV)</h2>
+      <div class="field">
+        <label>Growth model</label>
+        <div class="seg" id="modelSeg">
+          <button data-m="decaying" class="active">Decaying</button>
+          <button data-m="peak">Peak &amp; settle</button>
+          <button data-m="wasabi">Wasabi</button>
+          <button data-m="custom">Custom</button>
+        </div>
+      </div>
+      <div class="field"><label>Starting FPV(Q2) <span class="val" id="rq2v">$10</span></label><input type="range" id="rq2" min="10" max="100000" step="10" value="10"></div>
+      <div class="hint" id="fpvImplied"></div>
+      <div class="field"><label>Storage price (USDFC/TiB/month) <span class="val" id="stpricev">$2.50</span></label><input type="range" id="stprice" min="0.5" max="10" step="0.1" value="2.5"></div>
+      <div class="field" data-grp="g"><label>Initial QoQ growth (Q2→Q3) <span class="val" id="gv">100%</span></label><input type="range" id="g" min="5" max="200" step="5" value="100"></div>
+      <div class="field" data-grp="lt"><label>Long-term growth (beyond Q16 / floor) <span class="val" id="floorv">10%</span></label><input type="range" id="floor" min="0" max="40" step="1" value="10"></div>
+      <div class="field" id="customWrap" style="display:none"><label>QoQ growth into each quarter (%) — Molly's per-quarter path</label><div id="customGrid" class="cgrid"></div></div>
+      <div class="field"><label>PDP data stored @Q2 (FOC, not whole network) <span class="val" id="tibv">10 TiB</span></label><input type="range" id="tib" min="0" max="16" step="1" value="4"></div>
+      <div class="field"><label>FIL price (USD) <span class="val" id="filv">$0.70</span></label><input type="range" id="fil" min="0.2" max="20" step="0.05" value="0.70"></div>
+      <div class="field"><label>Quarters to model <span class="val" id="nv">16</span></label><input type="range" id="n" min="8" max="24" step="1" value="16"></div>
+    </div>
+
+    <!-- Fee regime -->
+    <div class="panel">
+      <h2>2 · Fee regime</h2>
+      <div class="field">
+        <label>Preset</label>
+        <div class="seg" id="regimeSeg">
+          <button data-r="v12" class="active">Mainnet v1.2.x</button>
+          <button data-r="v13">v1.3.0</button>
+          <button data-r="redesign">Redesign</button>
+        </div>
+      </div>
+      <div class="field"><label>Network fee on settlement <span class="val" id="netv">0.50%</span></label><input type="range" id="net" min="0" max="3" step="0.05" value="0.5"></div>
+      <div class="field"><label>createDataSet fee (USDFC) <span class="val" id="cdsv">$0.100</span></label><input type="range" id="cds" min="0" max="0.5" step="0.005" value="0.1"></div>
+      <div class="field">
+        <label>createDataSet fee destination</label>
+        <div class="seg" id="cdsDestSeg">
+          <button data-d="burn" class="active">Burned (pool)</button>
+          <button data-d="sp">To SP</button>
+        </div>
+      </div>
+      <div class="field"><label>New datasets per quarter @Q2 <span class="val" id="dsv">500</span></label><input type="range" id="ds" min="0" max="20000" step="50" value="500"></div>
+      <div class="field"><label>Proof-fee rate (FIL/TiB) <span class="val" id="prv">0.00023</span></label><input type="range" id="pr" min="0" max="0.002" step="0.00001" value="0.00023"></div>
+      <div class="field"><label>Proofs per day (per dataset) <span class="val" id="ppdv">1</span></label><input type="range" id="ppd" min="0" max="24" step="1" value="1"></div>
+    </div>
+
+    <!-- Token mix + surcharge -->
+    <div class="panel">
+      <h2>3 · Token mix &amp; non-FIL surcharge</h2>
+      <p class="legend">Share of FPV settled in each token. FIL burns directly; USDFC converts to FIL via the weekly auction; other tokens convert via auction too, but at a lower efficiency (Dutch-auction discount/delay).</p>
+      <div class="field"><label>Native FIL share <span class="val" id="mfilv">0%</span></label><input type="range" id="mfil" min="0" max="100" step="1" value="0"></div>
+      <div class="field"><label>USDFC share <span class="val" id="musdv">100%</span></label><input type="range" id="musd" min="0" max="100" step="1" value="100"></div>
+      <div class="field"><label>Other-token share <span class="val" id="mothv">0%</span> <span class="legend" id="mixwarn"></span></label><input type="range" id="moth" min="0" max="100" step="1" value="0"></div>
+      <hr style="border-color:var(--line)">
+      <div class="field"><label>Surcharge on other tokens (extra fee) <span class="val" id="surv">+1.00%</span></label><input type="range" id="sur" min="0" max="5" step="0.1" value="1.0"></div>
+      <div class="field"><label>Other-token auction conversion efficiency <span class="val" id="claimv">70%</span></label><input type="range" id="claim" min="0" max="100" step="5" value="70"></div>
+      <div class="field"><label>USDFC auction conversion efficiency <span class="val" id="effv">100%</span></label><input type="range" id="eff" min="50" max="100" step="5" value="100"></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- Charts -->
+  <div class="grid charts">
+    <div class="chartbox">
+      <h3>FIL burn by category (per quarter)</h3>
+      <canvas id="burnChart"></canvas>
+      <div class="note">Proof fee + FIL-rail direct burn are native FIL. USDFC &amp; other-token fees are shown as the FIL they burn when auctioned.</div>
+    </div>
+    <div class="chartbox">
+      <h3>Cumulative FIL burned — regime comparison</h3>
+      <canvas id="cmpChart"></canvas>
+      <div class="note">Same network trajectory, three fee regimes. Gap between v1.2.x and v1.3.0 is the burn the sybil fee was carrying.</div>
+    </div>
+    <div class="chartbox">
+      <h3>Network size — FPV trajectory ($/quarter)</h3>
+      <canvas id="fpvChart"></canvas>
+      <div class="note">Filecoin Pay Volume = settled deal-payment value. Drives both fees and the FIP-1249 block-reward gate.</div>
+    </div>
+    <div class="chartbox">
+      <h3>FIP-1249 block-reward split (context)</h3>
+      <canvas id="brChart"></canvas>
+      <div class="note">Macro burn: residual <b>whole-network</b> emission wb·BR is burned when the service stream w1 lags the 1−w0 ceiling — gated by FOC volume. Separate from the FOC fee burn above.</div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <h2 style="margin-top:22px">Quarterly detail</h2>
+  <div class="tablewrap">
+    <table id="tbl"><thead></thead><tbody></tbody></table>
+  </div>
+
+  <div class="foot">
+    Model reconstructs the FIP-1249 “Block-reward split — Scenario Explorer” (irenegia.github.io) decaying/peak/Wasabi growth models and overlays the Filecoin Pay fee structure documented in the Filecoin Onchain Cloud protocol context &amp; Filecoin Data Portal. Fee-burn defaults anchored to observed mainnet data (Nov 2025–Jun 2026). All figures are illustrative projections; dataset/proof linkage is a simplifying proxy you can tune. FIL burned from USDFC ≈ pool ÷ FIL price.
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const state={model:'decaying',regime:'v12',cdsDest:'burn'};
+const SIZES=[0.5,1,2,5,10,20,50,100,200,500,1024,2048,5120,10240,20480,51200,102400];
+const tibFmt=t=>t<1024?(t+' TiB'):((t/1024)+' PiB');
+const customDefaults=[100,67,47,33,25,20,16,14,12,12,11,11,10,10];
+(function buildCustom(){const g=document.getElementById('customGrid');if(!g)return;for(let q=3;q<=16;q++){const d=document.createElement('div');const lab=document.createElement('label');lab.textContent='Q'+q;const inp=document.createElement('input');inp.type='number';inp.id='c'+q;inp.value=customDefaults[q-3];inp.min=0;inp.step=1;inp.addEventListener('input',recompute);d.appendChild(lab);d.appendChild(inp);g.appendChild(d);}})();
+
+// ---------- input wiring ----------
+function seg(segId,key,after){
+  document.querySelectorAll('#'+segId+' button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#'+segId+' button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); state[key]=b.dataset.m||b.dataset.r||b.dataset.d; if(after)after(); recompute();
+  });
+}
+seg('modelSeg','model',updateModelUI);
+seg('regimeSeg','regime',applyRegime);
+seg('cdsDestSeg','cdsDest');
+function updateModelUI(){
+  const m=state.model;
+  document.querySelectorAll('[data-grp=g]').forEach(e=>e.style.display=(m==='decaying'||m==='peak')?'block':'none');
+  document.querySelectorAll('[data-grp=lt]').forEach(e=>e.style.display=(m!=='wasabi')?'block':'none');
+  document.getElementById('customWrap').style.display=(m==='custom')?'block':'none';
+}
+
+function applyRegime(){
+  if(state.regime==='v12'){ $('net').value=0.5; $('cds').value=0.1; setDest('burn'); $('sur').value=0; $('moth').value=0; $('musd').value=100; $('mfil').value=0; }
+  if(state.regime==='v13'){ $('net').value=0.5; $('cds').value=0.025; setDest('sp'); $('sur').value=0; }
+  if(state.regime==='redesign'){ $('net').value=0.5; $('cds').value=0.05; setDest('burn'); $('sur').value=1.5; if(+$('moth').value===0){$('moth').value=20;$('musd').value=70;$('mfil').value=10;} }
+}
+function setDest(d){state.cdsDest=d;document.querySelectorAll('#cdsDestSeg button').forEach(b=>b.classList.toggle('active',b.dataset.d===d));}
+
+['rq2','stprice','g','floor','fil','n','net','cds','ds','tib','pr','ppd','sur','claim','eff']
+  .forEach(id=>$(id).addEventListener('input',recompute));
+const MIXIDS=['mfil','musd','moth'];
+function balanceMix(changed){
+  const v=Math.max(0,Math.min(100,+$(changed).value)); $(changed).value=v;
+  const others=MIXIDS.filter(id=>id!==changed);
+  const rem=100-v; const a=+$(others[0]).value, b=+$(others[1]).value, s=a+b;
+  let na,nb;
+  if(s<=0){ na=Math.round(rem/2); nb=rem-na; } else { na=Math.round(rem*a/s); nb=rem-na; }
+  $(others[0]).value=na; $(others[1]).value=nb;
+}
+MIXIDS.forEach(id=>$(id).addEventListener('input',()=>{balanceMix(id);recompute();}));
+
+// ---------- growth models ----------
+function fpvSeries(model,RQ2,g,floor,N){
+  const f=new Array(N+1).fill(0); // index 1..N (quarter number); Q1 bootstrap=0
+  if(N>=2) f[2]=RQ2;
+  if(model==='decaying'){
+    for(let q=3;q<=N;q++){const i=q-2;const gi=floor+(g-floor)*Math.exp(-0.45*(i-1));f[q]=f[q-1]*(1+gi);}
+  }else if(model==='peak'){
+    // gamma-shaped QoQ rate: ramp up to ~Q4 then decay to floor by ~Q13, normalised so first step = g
+    const shape=i=>Math.pow(i,1.7)*Math.exp(-i/1.5);
+    const s1=shape(1);
+    for(let q=3;q<=N;q++){const i=q-2;let gi=g*shape(i)/s1;gi=Math.max(floor,gi);f[q]=f[q-1]*(1+gi);}
+  }else if(model==='wasabi'){
+    const rates=[0.32,0.32,0.32,0.32,0.14,0.14,0.14,0.14,0.10,0.10,0.10,0.10,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04,0.04];
+    for(let q=3;q<=N;q++){f[q]=f[q-1]*(1+rates[q-3]);}
+  }else if(model==='custom'){
+    for(let q=3;q<=N;q++){let gi;if(q<=16){const el=document.getElementById('c'+q);gi=el?(+el.value/100):floor;}else{gi=floor;}f[q]=f[q-1]*(1+gi);}
+  }
+  return f;
+}
+
+// ---------- block reward split (FIP-1249) ----------
+function brSeries(fpv,filPrice,N){
+  const BRd=63727.0;
+  const br=q=>BRd*Math.pow(0.5,(q-1)/24)*90*filPrice;
+  const w0=q=>Math.max(0.50,0.95-0.05*(q-1));
+  const bstart=0.0062,k=4.0,bmax=3.6,w1s=0.10,w1m=0.50;
+  const beta=w1=>{let fr=Math.max(0,Math.min(1,(w1-w1s)/(w1m-w1s)));return bstart+(bmax-bstart)*Math.pow(fr,k);};
+  let w1=0.10,prevAlloc=0.10*br(1);const out=[];
+  for(let q=1;q<=N;q++){
+    const BRq=br(q),ceil=1-w0(q);let w1q,pass=null,tgt=0;
+    if(q===1){w1q=Math.min(0.10,ceil);}
+    else{tgt=beta(w1)*prevAlloc;pass=fpv[q]>=tgt;if(pass&&w1+0.05<=ceil+1e-9){w1=Math.min(w1+0.05,ceil);}w1q=Math.min(w1,ceil);}
+    const wb=Math.max(0,1-w0(q)-w1q);
+    out.push({q,BRq,w0:w0(q),w1:w1q,wb,svc:w1q*BRq,burn:wb*BRq,tgt,pass});
+    prevAlloc=w1q*BRq;
+  }
+  return out;
+}
+
+// ---------- main ----------
+let burnChart,cmpChart,fpvChart,brChart;
+function recompute(){
+  // read inputs
+  const RQ2=+$('rq2').value, g=+$('g').value/100, floor=+$('floor').value/100, filPrice=+$('fil').value, N=+$('n').value;
+  const netFee=+$('net').value/100, cdsFee=+$('cds').value, dsQ2=+$('ds').value, tibQ2=SIZES[+$('tib').value], proofRate=+$('pr').value, proofsPerDay=+$('ppd').value, stPrice=+$('stprice').value;
+  let mFil=+$('mfil').value, mUsd=+$('musd').value, mOth=+$('moth').value;
+  const sur=+$('sur').value/100, claim=+$('claim').value/100, eff=+$('eff').value/100;
+  // labels
+  $('rq2v').textContent='$'+RQ2.toLocaleString(); $('gv').textContent=(g*100).toFixed(0)+'%'; $('floorv').textContent=(floor*100).toFixed(0)+'%';
+  $('filv').textContent='$'+filPrice.toFixed(2); $('nv').textContent=N; $('netv').textContent=(netFee*100).toFixed(2)+'%';
+  $('cdsv').textContent='$'+cdsFee.toFixed(3); $('dsv').textContent=dsQ2.toLocaleString();
+  $('tibv').textContent=tibFmt(tibQ2);
+  $('prv').textContent=proofRate.toFixed(5); $('ppdv').textContent=proofsPerDay;
+  $('stpricev').textContent='$'+stPrice.toFixed(2);
+  {const it=RQ2/(stPrice*3); $('fpvImplied').textContent='≈ '+(it>=1024?(it/1024).toFixed(2)+' PiB':it.toFixed(it<10?1:0)+' TiB')+' stored, at $'+stPrice.toFixed(2)+'/TiB·mo (if all FPV is storage)';}
+  $('mfilv').textContent=mFil+'%'; $('musdv').textContent=mUsd+'%'; $('mothv').textContent=mOth+'%';
+  $('surv').textContent='+'+(sur*100).toFixed(2)+'%'; $('claimv').textContent=(claim*100).toFixed(0)+'%'; $('effv').textContent=(eff*100).toFixed(0)+'%';
+  const mixTot=mFil+mUsd+mOth; $('mixwarn').textContent=mixTot!==100?('Σ='+mixTot+'% (normalised)'):'';
+  const fFil=mFil/mixTot,fUsd=mUsd/mixTot,fOth=mOth/mixTot;
+
+  const fpv=fpvSeries(state.model,RQ2,g,floor,N);
+  const br=brSeries(fpv,filPrice,N);
+
+  // fee + burn per quarter for a given regime
+  function feeBurn(regimeCdsDest,regimeCds,regimeSur){
+    const rows=[];let cumBurn=0;
+    for(let q=1;q<=N;q++){
+      const F=fpv[q];
+      const newDs= q>=2 ? dsQ2*(F/Math.max(RQ2,1)) : 0;
+      const tib = q>=2 ? tibQ2*(F/Math.max(RQ2,1)) : 0;
+      // network fee split by token
+      const feeFil = netFee*F*fFil;                       // burned directly (FIL value already in $ -> /price)
+      const feeUsd = netFee*F*fUsd;                       // -> auction pool
+      const feeOth = (netFee+regimeSur)*F*fOth;           // -> other pool (with surcharge)
+      // createDataSet fee
+      const cdsTotal = regimeCds*newDs;                   // USDFC
+      const cdsBurn = regimeCdsDest==='burn'? cdsTotal:0; // pool if burned
+      // proof fee (native FIL, always burned)
+      const proofFil = proofRate*tib*proofsPerDay*90;
+      // convert to FIL burned
+      const burnFil_proof = proofFil;
+      const burnFil_filrail = feeFil/filPrice;            // $ fee in FIL rails -> FIL
+      const burnFil_usd = (feeUsd+cdsBurn)*eff/filPrice;  // USDFC pool auctioned -> FIL
+      const burnFil_oth = feeOth*claim/filPrice;          // other pool, only claimed portion
+      const totalBurn = burnFil_proof+burnFil_filrail+burnFil_usd+burnFil_oth;
+      cumBurn+=totalBurn;
+      rows.push({q,F,newDs,feeFil,feeUsd,feeOth,cdsTotal,cdsBurn,proofFil,
+        burnFil_proof,burnFil_filrail,burnFil_usd,burnFil_oth,totalBurn,cumBurn,
+        surcharge:regimeSur*F*fOth});
+    }
+    return rows;
+  }
+
+  // current UI regime
+  const cur=feeBurn(state.cdsDest,cdsFee,sur);
+  // comparison regimes (fixed defs, same network + token mix)
+  const r12=feeBurn('burn',0.1,0);
+  const r13=feeBurn('sp',0.025,0);
+  const rRe=feeBurn('burn',cdsFee,sur);
+
+  // KPIs
+  const last=cur[cur.length-1];
+  const totBurn=cur.reduce((a,b)=>a+b.totalBurn,0);
+  const totSur=cur.reduce((a,b)=>a+b.surcharge,0);
+  const totFeeUsd=cur.reduce((a,b)=>a+b.feeFil+b.feeUsd+b.feeOth+b.cdsTotal,0);
+  const macroBurn=br.reduce((a,b)=>a+b.burn,0);
+  $('kpis').innerHTML=`
+    <div class="kpi"><div class="k">Cumulative FIL burned (fees)</div><div class="v">${fmt(totBurn)} FIL</div><div class="d">over ${N} quarters · ${state.regime} settings</div></div>
+    <div class="kpi"><div class="k">Total fee revenue</div><div class="v">$${fmt(totFeeUsd)}</div><div class="d">network + createDataSet fees</div></div>
+    <div class="kpi"><div class="k">Surcharge captured</div><div class="v">$${fmt(totSur)}</div><div class="d">from non-FIL/USDFC tokens</div></div>
+    <div class="kpi"><div class="k">Macro emission burned (wb·BR)</div><div class="v">$${fmt(macroBurn/1e6)}M</div><div class="d">FIP-1249 block-reward residual</div></div>`;
+
+  drawBurn(cur);
+  drawCmp(r12,r13,rRe);
+  drawFpv(fpv,N);
+  drawBr(br);
+  drawTable(cur,br);
+}
+function fmt(x){if(x>=1e6)return (x/1e6).toFixed(2)+'M';if(x>=1e3)return (x/1e3).toFixed(1)+'k';if(x>=10)return x.toFixed(0);return x.toFixed(2);}
+function labels(n){return Array.from({length:n},(_,i)=>'Q'+(i+1));}
+const C=getComputedStyle(document.documentElement);
+const col=n=>C.getPropertyValue('--'+n).trim();
+
+function baseOpts(stack){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:col('muted'),boxWidth:12,font:{size:10}}}},scales:{x:{stacked:!!stack,ticks:{color:col('muted'),font:{size:10}},grid:{color:'rgba(255,255,255,.04)'}},y:{stacked:!!stack,ticks:{color:col('muted'),font:{size:10}},grid:{color:'rgba(255,255,255,.06)'}}}};}
+
+function drawBurn(rows){
+  const data={labels:labels(rows.length),datasets:[
+    {label:'Proof fee (FIL)',data:rows.map(r=>r.burnFil_proof),backgroundColor:col('proof')},
+    {label:'FIL-rail direct',data:rows.map(r=>r.burnFil_filrail),backgroundColor:col('fil')},
+    {label:'USDFC→auction',data:rows.map(r=>r.burnFil_usd),backgroundColor:col('usdfc')},
+    {label:'Other→auction',data:rows.map(r=>r.burnFil_oth),backgroundColor:col('other')},
+  ]};
+  if(burnChart){burnChart.data=data;burnChart.update();}
+  else burnChart=new Chart($('burnChart'),{type:'bar',data,options:baseOpts(true)});
+}
+function drawCmp(r12,r13,rRe){
+  const cum=rows=>{let s=0;return rows.map(r=>s+=r.totalBurn);};
+  const data={labels:labels(r12.length),datasets:[
+    {label:'v1.2.x (0.5% + sybil burn)',data:cum(r12),borderColor:col('burn'),backgroundColor:'transparent',tension:.25},
+    {label:'v1.3.0 (sybil → SP)',data:cum(r13),borderColor:col('muted'),backgroundColor:'transparent',tension:.25,borderDash:[5,4]},
+    {label:'Redesign (current sliders)',data:cum(rRe),borderColor:col('accent'),backgroundColor:'transparent',tension:.25},
+  ]};
+  if(cmpChart){cmpChart.data=data;cmpChart.update();}
+  else cmpChart=new Chart($('cmpChart'),{type:'line',data,options:baseOpts(false)});
+}
+function drawFpv(fpv,N){
+  const data={labels:labels(N),datasets:[{label:'FPV ($/quarter)',data:fpv.slice(1,N+1),borderColor:col('service'),backgroundColor:'rgba(20,184,166,.15)',fill:true,tension:.25}]};
+  if(fpvChart){fpvChart.data=data;fpvChart.update();}
+  else fpvChart=new Chart($('fpvChart'),{type:'line',data,options:baseOpts(false)});
+}
+function drawBr(br){
+  const data={labels:br.map(b=>'Q'+b.q),datasets:[
+    {label:'Consensus w0·BR',data:br.map(b=>b.w0*b.BRq/1e6),backgroundColor:col('consensus')},
+    {label:'Service w1·BR',data:br.map(b=>b.svc/1e6),backgroundColor:col('service')},
+    {label:'Burn wb·BR',data:br.map(b=>b.burn/1e6),backgroundColor:col('burn')},
+  ]};
+  const o=baseOpts(true);o.scales.y.title={display:true,text:'$M',color:col('muted')};
+  if(brChart){brChart.data=data;brChart.update();}
+  else brChart=new Chart($('brChart'),{type:'bar',data,options:o});
+}
+function drawTable(cur,br){
+  $('tbl').querySelector('thead').innerHTML='<tr><th>Q</th><th>FPV $</th><th>new DS</th><th>net fee $</th><th>CDS $</th><th>proof FIL</th><th>burn FIL</th><th>cum FIL</th><th>w1</th><th>wb burn $M</th><th>gate</th></tr>';
+  $('tbl').querySelector('tbody').innerHTML=cur.map((r,i)=>{
+    const b=br[i];const gate=b.pass===null?'—':(b.pass?'<span class="pill pass">pass</span>':'<span class="pill fail">hold</span>');
+    return `<tr><td>Q${r.q}</td><td>${r.F.toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${r.newDs.toFixed(0)}</td><td>${(r.feeFil+r.feeUsd+r.feeOth).toFixed(1)}</td><td>${r.cdsTotal.toFixed(1)}</td><td>${r.proofFil.toFixed(3)}</td><td>${r.totalBurn.toFixed(2)}</td><td>${r.cumBurn.toFixed(1)}</td><td>${(b.w1*100).toFixed(0)}%</td><td>${(b.burn/1e6).toFixed(2)}</td><td>${gate}</td></tr>`;
+  }).join('');
+}
+
+updateModelUI();
+recompute();
+</script>
+</body>
+</html>
