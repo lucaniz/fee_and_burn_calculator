@@ -69,6 +69,7 @@
   .cgrid>div{display:flex;flex-direction:column}
   .cgrid label{font-size:10px;color:var(--muted);margin-bottom:2px}
   .cgrid input{padding:3px 4px;font-size:11px}
+  .hint{font-size:11px;color:var(--accent);margin:2px 0 10px}
 </style>
 </head>
 <body>
@@ -87,6 +88,7 @@
 
   <h4>1 &middot; Network size (FPV)</h4>
   <p><span class="term">Starting FPV(Q2)</span> — Filecoin Pay Volume in the first measured quarter (USD). FPV = total $ value of deal payments settled through Filecoin Pay in a quarter &mdash; <b>not</b> the fee. Q1 is a bootstrap quarter with no measured volume. This seeds the network size.</p>
+  <p><span class="term">Storage price</span> — USDFC per TiB per month (FWSS = 2.5, Storacha = 0.9). Translates the starting FPV into the implied network size shown under the FPV slider, assuming all volume is storage (excludes CDN/egress). It is a guide for setting <b>PDP data stored</b> consistently; it does not itself change the burn math.</p>
   <p><span class="term">Initial QoQ growth (Q2&rarr;Q3)</span> — the starting quarter-over-quarter FPV growth rate (Decaying &amp; Peak models).</p>
   <p><span class="term">Long-term growth</span> — the steady-state QoQ rate the trajectory settles toward (Decaying &amp; Peak models).</p>
   <p><span class="term">PDP data stored @Q2 (FOC only)</span> — total data under PDP / Filecoin-Onchain-Cloud storage (TiB) in the first measured quarter; grows along the FPV trajectory. Drives the proof-fee burn. <b>This is the PDP network, not the whole Filecoin network</b> — the 0.00023 FIL/TiB fee is charged only on PDPVerifier <code>provePossession</code>, never on legacy sealed-sector storage (WindowPoSt), which has its own pledge/reward economics. <em>All PDP listeners (FWSS + Storacha + direct) &asymp; 25 TiB actively proven on mainnet today.</em></p>
@@ -125,6 +127,8 @@
         </div>
       </div>
       <div class="field"><label>Starting FPV(Q2) <span class="val" id="rq2v">$1,600</span></label><input type="range" id="rq2" min="500" max="100000" step="100" value="1600"></div>
+      <div class="hint" id="fpvImplied"></div>
+      <div class="field"><label>Storage price (USDFC/TiB/month) <span class="val" id="stpricev">$2.50</span></label><input type="range" id="stprice" min="0.5" max="10" step="0.1" value="2.5"></div>
       <div class="field" data-grp="g"><label>Initial QoQ growth (Q2→Q3) <span class="val" id="gv">100%</span></label><input type="range" id="g" min="5" max="200" step="5" value="100"></div>
       <div class="field" data-grp="lt"><label>Long-term growth (beyond Q16 / floor) <span class="val" id="floorv">10%</span></label><input type="range" id="floor" min="0" max="40" step="1" value="10"></div>
       <div class="field" id="customWrap" style="display:none"><label>QoQ growth into each quarter (%) — Molly's per-quarter path</label><div id="customGrid" class="cgrid"></div></div>
@@ -242,7 +246,7 @@ function applyRegime(){
 }
 function setDest(d){state.cdsDest=d;document.querySelectorAll('#cdsDestSeg button').forEach(b=>b.classList.toggle('active',b.dataset.d===d));}
 
-['rq2','g','floor','fil','n','net','cds','ds','tib','pr','ppd','mfil','musd','moth','sur','claim','eff']
+['rq2','stprice','g','floor','fil','n','net','cds','ds','tib','pr','ppd','mfil','musd','moth','sur','claim','eff']
   .forEach(id=>$(id).addEventListener('input',recompute));
 
 // ---------- growth models ----------
@@ -289,7 +293,7 @@ let burnChart,cmpChart,fpvChart,brChart;
 function recompute(){
   // read inputs
   const RQ2=+$('rq2').value, g=+$('g').value/100, floor=+$('floor').value/100, filPrice=+$('fil').value, N=+$('n').value;
-  const netFee=+$('net').value/100, cdsFee=+$('cds').value, dsQ2=+$('ds').value, tibQ2=SIZES[+$('tib').value], proofRate=+$('pr').value, proofsPerDay=+$('ppd').value;
+  const netFee=+$('net').value/100, cdsFee=+$('cds').value, dsQ2=+$('ds').value, tibQ2=SIZES[+$('tib').value], proofRate=+$('pr').value, proofsPerDay=+$('ppd').value, stPrice=+$('stprice').value;
   let mFil=+$('mfil').value, mUsd=+$('musd').value, mOth=+$('moth').value;
   const sur=+$('sur').value/100, claim=+$('claim').value/100, eff=+$('eff').value/100;
   // labels
@@ -298,6 +302,8 @@ function recompute(){
   $('cdsv').textContent='$'+cdsFee.toFixed(3); $('dsv').textContent=dsQ2.toLocaleString();
   $('tibv').textContent=tibFmt(tibQ2);
   $('prv').textContent=proofRate.toFixed(5); $('ppdv').textContent=proofsPerDay;
+  $('stpricev').textContent='$'+stPrice.toFixed(2);
+  {const it=RQ2/(stPrice*3); $('fpvImplied').textContent='≈ '+(it>=1024?(it/1024).toFixed(2)+' PiB':it.toFixed(it<10?1:0)+' TiB')+' stored, at $'+stPrice.toFixed(2)+'/TiB·mo (if all FPV is storage)';}
   $('mfilv').textContent=mFil+'%'; $('musdv').textContent=mUsd+'%'; $('mothv').textContent=mOth+'%';
   $('surv').textContent='+'+(sur*100).toFixed(2)+'%'; $('claimv').textContent=(claim*100).toFixed(0)+'%'; $('effv').textContent=(eff*100).toFixed(0)+'%';
   const mixTot=mFil+mUsd+mOth; $('mixwarn').textContent=mixTot!==100?('Σ='+mixTot+'% (normalised)'):'';
