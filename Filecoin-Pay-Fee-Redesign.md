@@ -8,7 +8,7 @@
 
 This document maps which Filecoin Pay fees burn FIL, quantifies each from on-chain data, and works through two calibration questions:
 
-1. **How much to augment the proof fee and/or the payment (network) fee** to produce a target FIL burn.
+1. **How much to augment the proof fee and/or the payment (network) fee** to produce a target FIL burn;
 2. **How much to charge for fees paid in tokens other than FIL/USDFC.**
 
 Three facts frame the calibration:
