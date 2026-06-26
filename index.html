@@ -88,10 +88,10 @@
 
   <h4>1 &middot; Network size (FPV)</h4>
   <p><span class="term">Starting FPV(Q2)</span> — Filecoin Pay Volume in the first measured quarter (USD). FPV = total $ value of deal payments settled through Filecoin Pay in a quarter &mdash; <b>not</b> the fee. Q1 is a bootstrap quarter with no measured volume. This seeds the network size.</p>
-  <p><span class="term">Storage price</span> — USDFC per TiB per month (FWSS = 2.5, Storacha = 0.9). Translates the starting FPV into the implied network size shown under the FPV slider, assuming all volume is storage (excludes CDN/egress). It is a guide for setting <b>PDP data stored</b> consistently; it does not itself change the burn math.</p>
+  <p><span class="term">Storage price</span> — USDFC per TiB per month (FWSS = 2.5, Storacha = 0.9). Links the starting FPV and the PDP network size by <code>TiB = FPV &divide; (price &times; 3 months)</code>: changing the price (or FPV) re-derives the stored data. Assumes all volume is storage (excludes CDN/egress).</p>
   <p><span class="term">Initial QoQ growth (Q2&rarr;Q3)</span> — the starting quarter-over-quarter FPV growth rate (Decaying &amp; Peak models).</p>
   <p><span class="term">Long-term growth</span> — the steady-state QoQ rate the trajectory settles toward (Decaying &amp; Peak models).</p>
-  <p><span class="term">PDP data stored @Q2 (FOC only)</span> — total data under PDP / Filecoin-Onchain-Cloud storage (TiB) in the first measured quarter; grows along the FPV trajectory. Drives the proof-fee burn. <b>This is the PDP network, not the whole Filecoin network</b> — the 0.00023 FIL/TiB fee is charged only on PDPVerifier <code>provePossession</code>, never on legacy sealed-sector storage (WindowPoSt), which has its own pledge/reward economics. <em>All PDP listeners (FWSS + Storacha + direct) &asymp; 25 TiB actively proven on mainnet today.</em></p>
+  <p><span class="term">PDP data stored @Q2 (linked to FPV)</span> — data under PDP / Filecoin-Onchain-Cloud storage in the first measured quarter, derived from FPV and storage price (<code>TiB = FPV &divide; price &divide; 3</code>). Moving this slider sets FPV to match, and vice versa; it then grows along the FPV trajectory and drives the proof-fee burn. <b>This is the PDP network, not the whole Filecoin network</b> — the 0.00023 FIL/TiB fee is charged only on PDPVerifier <code>provePossession</code>, never on legacy sealed-sector (WindowPoSt) storage. <em>&asymp; 25 TiB actively proven on mainnet today.</em></p>
   <p><span class="term">FIL price</span> — converts USDFC fees into the FIL they burn at auction (and values block rewards). Lower FIL price &rarr; more FIL burned per USDFC of fees.</p>
   <p><span class="term">Quarters to model</span> — the projection horizon.</p>
 
@@ -111,6 +111,12 @@
 
   <h4>Outputs</h4>
   <p><span class="term">FIL burn by category</span> — per-quarter burn, stacked by source. &nbsp;<span class="term">Cumulative comparison</span> — same network, three fee regimes. &nbsp;<span class="term">FPV trajectory</span> — your network-size curve. &nbsp;<span class="term">FIP-1249 split</span> — macro context: how much new emission (wb&middot;BR) is burned when service-stream growth lags the ceiling.</p>
+
+  <h4>KPIs (the four cards)</h4>
+  <p><span class="term">Cumulative FIL burned (fees)</span> — total FIL <b>actually burnt</b> by the fees, summed over all modelled quarters, in <b>FIL</b>. It is the sum of the four burn channels: proof fee, FIL-rail direct, USDFC&rarr;auction and other&rarr;auction.</p>
+  <p><span class="term">Total fees collected</span> — <b>gross fees paid</b> by users (network fee + createDataSet fee), summed over all quarters, valued in <b>$</b> across <b>all</b> tokens (not only USDFC). It includes fees that go to the SP and are never burned.</p>
+  <p><b>How the two relate:</b> USDFC fees become FIL by dividing by the FIL price, so when all fees are burned <code>FIL burned &asymp; fees &divide; FIL price</code> (plus the proof fee, already in FIL). The FIL number is larger than the $ number whenever FIL &lt; $1. They <b>diverge</b> when fees go to the SP (createDataSet &rarr; SP), when the mix isn&rsquo;t all USDFC, or when conversion efficiency &lt; 100%.</p>
+  <p><span class="term">Surcharge captured</span> — extra fee revenue from non-FIL/USDFC tokens, in $. &nbsp;<span class="term">Macro emission burned (wb&middot;BR)</span> — the whole-network FIP-1249 emission burn (context), in $M; separate from the fee burn.</p>
   </details>
 
   <div class="grid controls">
@@ -132,7 +138,7 @@
       <div class="field" data-grp="g"><label>Initial QoQ growth (Q2→Q3) <span class="val" id="gv">100%</span></label><input type="range" id="g" min="5" max="200" step="5" value="100"></div>
       <div class="field" data-grp="lt"><label>Long-term growth (beyond Q16 / floor) <span class="val" id="floorv">10%</span></label><input type="range" id="floor" min="0" max="40" step="1" value="10"></div>
       <div class="field" id="customWrap" style="display:none"><label>QoQ growth into each quarter (%) — Molly's per-quarter path</label><div id="customGrid" class="cgrid"></div></div>
-      <div class="field"><label>PDP data stored @Q2 (FOC, not whole network) <span class="val" id="tibv">10 TiB</span></label><input type="range" id="tib" min="0" max="16" step="1" value="4"></div>
+      <div class="field"><label>PDP data stored @Q2 (linked to FPV via price) <span class="val" id="tibv">10 TiB</span></label><input type="range" id="tib" min="0" max="16" step="1" value="4"></div>
       <div class="field"><label>FIL price (USD) <span class="val" id="filv">$0.70</span></label><input type="range" id="fil" min="0.2" max="20" step="0.05" value="0.70"></div>
       <div class="field"><label>Quarters to model <span class="val" id="nv">16</span></label><input type="range" id="n" min="8" max="24" step="1" value="16"></div>
     </div>
@@ -218,7 +224,7 @@
 const $=id=>document.getElementById(id);
 const state={model:'decaying',regime:'v12',cdsDest:'burn'};
 const SIZES=[0.5,1,2,5,10,20,50,100,200,500,1024,2048,5120,10240,20480,51200,102400];
-const tibFmt=t=>t<1024?(t+' TiB'):((t/1024)+' PiB');
+const tibFmt=t=>t<1024?((+t.toFixed(t<10?2:t<100?1:0))+' TiB'):((t/1024).toFixed(2)+' PiB');
 const customDefaults=[100,67,47,33,25,20,16,14,12,12,11,11,10,10];
 (function buildCustom(){const g=document.getElementById('customGrid');if(!g)return;for(let q=3;q<=16;q++){const d=document.createElement('div');const lab=document.createElement('label');lab.textContent='Q'+q;const inp=document.createElement('input');inp.type='number';inp.id='c'+q;inp.value=customDefaults[q-3];inp.min=0;inp.step=1;inp.addEventListener('input',recompute);d.appendChild(lab);d.appendChild(inp);g.appendChild(d);}})();
 
@@ -246,8 +252,11 @@ function applyRegime(){
 }
 function setDest(d){state.cdsDest=d;document.querySelectorAll('#cdsDestSeg button').forEach(b=>b.classList.toggle('active',b.dataset.d===d));}
 
-['rq2','stprice','g','floor','fil','n','net','cds','ds','tib','pr','ppd','sur','claim','eff']
+['rq2','stprice','g','floor','fil','n','net','cds','ds','pr','ppd','sur','claim','eff']
   .forEach(id=>$(id).addEventListener('input',recompute));
+function nearestSizeIdx(t){let bi=0,bd=Infinity;SIZES.forEach((s,i)=>{const d=Math.abs(s-t);if(d<bd){bd=d;bi=i;}});return bi;}
+// PDP-size slider sets FPV (= size × price × 3); conversely FPV/price set the size in recompute()
+$('tib').addEventListener('input',()=>{const fpv=Math.max(10,Math.min(100000,Math.round(SIZES[+$('tib').value]*(+$('stprice').value)*3)));$('rq2').value=fpv;recompute();});
 const MIXIDS=['mfil','musd','moth'];
 function balanceMix(changed){
   const v=Math.max(0,Math.min(100,+$(changed).value)); $(changed).value=v;
@@ -303,17 +312,18 @@ let burnChart,cmpChart,fpvChart,brChart;
 function recompute(){
   // read inputs
   const RQ2=+$('rq2').value, g=+$('g').value/100, floor=+$('floor').value/100, filPrice=+$('fil').value, N=+$('n').value;
-  const netFee=+$('net').value/100, cdsFee=+$('cds').value, dsQ2=+$('ds').value, tibQ2=SIZES[+$('tib').value], proofRate=+$('pr').value, proofsPerDay=+$('ppd').value, stPrice=+$('stprice').value;
+  const netFee=+$('net').value/100, cdsFee=+$('cds').value, dsQ2=+$('ds').value, proofRate=+$('pr').value, proofsPerDay=+$('ppd').value, stPrice=+$('stprice').value;
+  const tibQ2 = RQ2/(stPrice*3);   // PDP network size linked to FPV via storage price
   let mFil=+$('mfil').value, mUsd=+$('musd').value, mOth=+$('moth').value;
   const sur=+$('sur').value/100, claim=+$('claim').value/100, eff=+$('eff').value/100;
   // labels
   $('rq2v').textContent='$'+RQ2.toLocaleString(); $('gv').textContent=(g*100).toFixed(0)+'%'; $('floorv').textContent=(floor*100).toFixed(0)+'%';
   $('filv').textContent='$'+filPrice.toFixed(2); $('nv').textContent=N; $('netv').textContent=(netFee*100).toFixed(2)+'%';
   $('cdsv').textContent='$'+cdsFee.toFixed(3); $('dsv').textContent=dsQ2.toLocaleString();
-  $('tibv').textContent=tibFmt(tibQ2);
+  $('tibv').textContent=tibFmt(tibQ2); $('tib').value=nearestSizeIdx(tibQ2);
   $('prv').textContent=proofRate.toFixed(5); $('ppdv').textContent=proofsPerDay;
   $('stpricev').textContent='$'+stPrice.toFixed(2);
-  {const it=RQ2/(stPrice*3); $('fpvImplied').textContent='≈ '+(it>=1024?(it/1024).toFixed(2)+' PiB':it.toFixed(it<10?1:0)+' TiB')+' stored, at $'+stPrice.toFixed(2)+'/TiB·mo (if all FPV is storage)';}
+  $('fpvImplied').textContent='≈ '+tibFmt(tibQ2)+' PDP stored — linked to FPV at $'+stPrice.toFixed(2)+'/TiB·mo (assumes all FPV is storage)';
   $('mfilv').textContent=mFil+'%'; $('musdv').textContent=mUsd+'%'; $('mothv').textContent=mOth+'%';
   $('surv').textContent='+'+(sur*100).toFixed(2)+'%'; $('claimv').textContent=(claim*100).toFixed(0)+'%'; $('effv').textContent=(eff*100).toFixed(0)+'%';
   const mixTot=mFil+mUsd+mOth; $('mixwarn').textContent=mixTot!==100?('Σ='+mixTot+'% (normalised)'):'';
@@ -367,7 +377,7 @@ function recompute(){
   const macroBurn=br.reduce((a,b)=>a+b.burn,0);
   $('kpis').innerHTML=`
     <div class="kpi"><div class="k">Cumulative FIL burned (fees)</div><div class="v">${fmt(totBurn)} FIL</div><div class="d">over ${N} quarters · ${state.regime} settings</div></div>
-    <div class="kpi"><div class="k">Total fee revenue</div><div class="v">$${fmt(totFeeUsd)}</div><div class="d">network + createDataSet fees</div></div>
+    <div class="kpi"><div class="k">Total fees collected</div><div class="v">$${fmt(totFeeUsd)}</div><div class="d">all fees paid, in $ (every token) — incl. fees to SPs; only part is burned</div></div>
     <div class="kpi"><div class="k">Surcharge captured</div><div class="v">$${fmt(totSur)}</div><div class="d">from non-FIL/USDFC tokens</div></div>
     <div class="kpi"><div class="k">Macro emission burned (wb·BR)</div><div class="v">$${fmt(macroBurn/1e6)}M</div><div class="d">FIP-1249 block-reward residual</div></div>`;
 
